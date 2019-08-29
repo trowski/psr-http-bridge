@@ -42,12 +42,12 @@
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
-            "Trowski\\PsrBridge\\": "src"
+            "Trowski\\PsrHttpBridge\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Trowski\\PsrBridge\\Test\\": "test"
+            "Trowski\\PsrHttpBridge\\Test\\": "test"
         }
     }
 }
