@@ -1,0 +1,53 @@
+{
+    "name": "trowski/psr-http-bridge",
+    "homepage": "https://github.com/trowski/psr-http-bridge",
+    "description": "Amp HTTP server bridge for PSR-7 and PSR-15 based frameworks",
+    "keywords": [
+        "http",
+        "server",
+        "async",
+        "psr-7",
+        "psr-15"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Aaron Piotrowski",
+            "email": "aaron@trowski.com"
+        }
+    ],
+    "config": {
+        "sort-packages": true
+    },
+    "require": {
+        "php": "^7.1",
+        "amphp/http-server": "^2",
+        "amphp/http-server-form-parser": "^1",
+        "league/uri-components": "^1.7",
+        "psr/http-message": "^1",
+        "psr/http-server-handler": "^1"
+
+    },
+    "require-dev": {
+        "amphp/cluster": "dev-master as 1.0",
+        "amphp/file": "dev-master as 0.3",
+        "amphp/log": "^1",
+        "amphp/phpunit-util": "^1.1",
+        "amphp/php-cs-fixer-config": "dev-master",
+        "phpunit/phpunit": "^8 || ^7",
+        "zendframework/zend-diactoros": "^1.8",
+        "zendframework/zend-expressive": "^3"
+    },
+    "minimum-stability": "RC",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "Trowski\\PsrBridge\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Trowski\\PsrBridge\\Test\\": "test"
+        }
+    }
+}
