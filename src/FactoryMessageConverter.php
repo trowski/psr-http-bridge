@@ -106,9 +106,14 @@ final class FactoryMessageConverter implements MessageConverter
             }
 
             $converted = $this->requestFactory->createServerRequest($request->getMethod(), $uri, $server);
-            $converted = $converted->withBody(new AdaptedAsyncStream($request->getBody()));
+
+            foreach ($request->getHeaders() as $field => $values) {
+                $converted = $converted->withHeader($field, $values);
+            }
+
             $converted = $converted->withCookieParams($cookies);
             $converted = $converted->withQueryParams($query->getPairs());
+            $converted = $converted->withProtocolVersion($request->getProtocolVersion());
 
             $type = $request->getHeader('content-type');
 
@@ -131,6 +136,8 @@ final class FactoryMessageConverter implements MessageConverter
 
                 // @TODO Normalize uploaded files and write to tmp directory.
                 // $files = $form->getFiles();
+            } else {
+                $converted = $converted->withBody(new AdaptedAsyncStream($request->getBody()));
             }
 
             return $converted;
