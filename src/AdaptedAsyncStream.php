@@ -10,10 +10,13 @@ use Amp\File\File as FileStream;
 use Amp\Promise;
 use Psr\Http\Message\StreamInterface as PsrStream;
 
-final class StreamAdapter implements PsrStream
+final class AdaptedAsyncStream implements PsrStream
 {
     /** @var InputStream */
     private $stream;
+
+    /** @var string|null */
+    private $buffer;
 
     /** @var bool */
     private $eof = false;
@@ -23,10 +26,22 @@ final class StreamAdapter implements PsrStream
         $this->stream = $stream;
     }
 
+    /**
+     * Returns the wrapped stream and marks this stream unusable, similar to detach().
+     *
+     * @return InputStream
+     */
+    public function extractAsyncStream(): InputStream
+    {
+        $this->eof = true;
+        return $this->stream;
+    }
+
     public function __toString(): string
     {
         return $this->getContents();
     }
+
 
     public function close(): void
     {
@@ -134,18 +149,30 @@ final class StreamAdapter implements PsrStream
             throw new \RuntimeException('The stream has closed and is no longer readable');
         }
 
-        try {
-            $result = Promise\wait($this->stream->read());
-        } catch (\Throwable $exception) {
-            $this->eof = true;
-            throw new \RuntimeException('An error occurred while reading from the stream', 0, $exception);
+        if ($this->buffer === null) {
+            try {
+                $result = Promise\wait($this->stream->read());
+            } catch (\Throwable $exception) {
+                $this->eof = true;
+                throw new \RuntimeException('An error occurred while reading from the stream', 0, $exception);
+            }
+
+            if ($result === null) {
+                $this->eof = true;
+            }
+        } else {
+            $result = $this->buffer;
+            $this->buffer = null;
         }
 
-        if ($result === null) {
-            $this->eof = true;
+        $result = (string) $result;
+
+        if (\strlen($result) > $length) {
+            $this->buffer = \substr($result, $length);
+            $result = \substr($result, 0, $length);
         }
 
-        return (string) $result;
+        return $result;
     }
 
     public function getContents(): string

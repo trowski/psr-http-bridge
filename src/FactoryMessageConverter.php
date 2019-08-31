@@ -11,17 +11,20 @@ use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
 use League\Uri\Components\Query;
-use Psr\Http\Message\RequestInterface as PsrRequest;
+use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 use Psr\Http\Message\ResponseInterface as PsrResponse;
-use Zend\Diactoros\ServerRequest as ZendRequest;
+use Psr\Http\Message\ServerRequestFactoryInterface as PsrServerRequestFactory;
 use function Amp\call;
 
-final class ZendMessageFactory implements MessageFactory
+final class FactoryMessageConverter implements MessageConverter
 {
     private const CHUNK_SIZE = 8192;
 
     public const DEFAULT_FIELD_COUNT_LIMIT = 1000;
     public const DEFAULT_BODY_SIZE_LIMIT = 2 ** 20; // 1MB
+
+    /** @var PsrServerRequestFactory */
+    private $requestFactory;
 
     /** @var BufferingParser */
     private $bodyParser;
@@ -30,9 +33,11 @@ final class ZendMessageFactory implements MessageFactory
     private $tmpFilePath;
 
     public function __construct(
+        PsrServerRequestFactory $requestFactory,
         int $fieldCountLimit = self::DEFAULT_FIELD_COUNT_LIMIT,
         ?string $tmpFilePath = null
     ) {
+        $this->requestFactory = $requestFactory;
         $this->bodyParser = new BufferingParser($fieldCountLimit);
         $this->tmpFilePath = $tmpFilePath ?? \sys_get_temp_dir();
     }
@@ -40,32 +45,11 @@ final class ZendMessageFactory implements MessageFactory
     /**
      * @param AmpRequest $request
      *
-     * @return Promise<PsrRequest>
+     * @return Promise<PsrServerRequest>
      */
     public function convertRequest(AmpRequest $request): Promise
     {
         return call(function () use ($request) {
-            $type = $request->getHeader('content-type');
-
-            if ($type !== null
-                && (
-                    \strncmp($type, "application/x-www-form-urlencoded", \strlen("application/x-www-form-urlencoded")) === 0
-                    || \preg_match('#^\s*multipart/(?:form-data|mixed)(?:\s*;\s*boundary\s*=\s*("?)([^"]*)\1)?$#', $type)
-                )
-            ) {
-                $form = yield $this->bodyParser->parseForm($request);
-                \assert($form instanceof Form);
-                $postValues = $form->getValues();
-                foreach ($postValues as $key => $value) {
-                    if (\count($value) === 1) {
-                        $postValues[$key] = $value[0];
-                    }
-                }
-
-                // @TODO Normalize uploaded files and write to tmp directory.
-                // $files = $form->getFiles();
-            }
-
             $uri = $request->getUri();
             $client = $request->getClient();
             $localAddress = $client->getLocalAddress();
@@ -121,18 +105,35 @@ final class ZendMessageFactory implements MessageFactory
                 $cookies[$cookie->getName()] = $cookie->getValue();
             }
 
-            return new ZendRequest(
-                $server,
-                $files ?? [],
-                $uri,
-                $request->getMethod(),
-                new StreamAdapter($request->getBody()),
-                $request->getHeaders(),
-                $cookies,
-                $query->getPairs(),
-                $postValues ?? null,
-                $request->getProtocolVersion()
-            );
+            $converted = $this->requestFactory->createServerRequest($request->getMethod(), $uri, $server);
+            $converted = $converted->withBody(new AdaptedAsyncStream($request->getBody()));
+            $converted = $converted->withCookieParams($cookies);
+            $converted = $converted->withQueryParams($query->getPairs());
+
+            $type = $request->getHeader('content-type');
+
+            if ($type !== null
+                && (
+                    \strncmp($type, "application/x-www-form-urlencoded", \strlen("application/x-www-form-urlencoded")) === 0
+                    || \preg_match('#^\s*multipart/(?:form-data|mixed)(?:\s*;\s*boundary\s*=\s*("?)([^"]*)\1)?$#', $type)
+                )
+            ) {
+                $form = yield $this->bodyParser->parseForm($request);
+                \assert($form instanceof Form);
+                $postValues = $form->getValues();
+                foreach ($postValues as $key => $value) {
+                    if (\count($value) === 1) {
+                        $postValues[$key] = $value[0];
+                    }
+                }
+
+                $converted = $converted->withParsedBody($postValues);
+
+                // @TODO Normalize uploaded files and write to tmp directory.
+                // $files = $form->getFiles();
+            }
+
+            return $converted;
         });
     }
 
@@ -148,14 +149,20 @@ final class ZendMessageFactory implements MessageFactory
 
         $body = $response->getBody();
 
-        $converted = new AmpResponse(
-            $response->getStatusCode(),
-            $response->getHeaders(),
-            new IteratorStream(new Producer(function (callable $emit) use ($body): \Generator {
+        if ($body instanceof AdaptedAsyncStream) {
+            $stream = $body->extractAsyncStream();
+        } else {
+            $stream = new IteratorStream(new Producer(function (callable $emit) use ($body): \Generator {
                 while (!$body->eof()) {
                     yield $emit($body->read(self::CHUNK_SIZE));
                 }
-            }))
+            }));
+        }
+
+        $converted = new AmpResponse(
+            $response->getStatusCode(),
+            $response->getHeaders(),
+            $stream
         );
 
         foreach ($push as $pushed) {

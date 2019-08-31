@@ -13,10 +13,10 @@ final class RequestHandlerBridge implements AmpRequestHandler
     /** @var PsrRequestHandler */
     private $requestHandler;
 
-    /** @var MessageFactory */
+    /** @var MessageConverter */
     private $messageFactory;
 
-    public function __construct(PsrRequestHandler $handler, MessageFactory $factory)
+    public function __construct(PsrRequestHandler $handler, MessageConverter $factory)
     {
         $this->requestHandler = $handler;
         $this->messageFactory = $factory;

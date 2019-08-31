@@ -15,7 +15,8 @@ use Amp\Socket\ServerTlsContext;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Logger;
 use Trowski\PsrHttpBridge\RequestHandlerBridge;
-use Trowski\PsrHttpBridge\ZendMessageFactory;
+use Trowski\PsrHttpBridge\FactoryMessageConverter;
+use Zend\Diactoros\ServerRequestFactory;
 use Zend\Expressive\Application;
 use Zend\Expressive\MiddlewareFactory;
 
@@ -28,14 +29,16 @@ Loop::run(function (): \Generator {
 
     /** @var \Zend\Expressive\Application $app */
     $app = $container->get(Application::class);
-    $factory = $container->get(MiddlewareFactory::class);
+    $middlewareFactory = $container->get(MiddlewareFactory::class);
 
     // Execute programmatic/declarative middleware pipeline and routing
     // configuration statements
-    (require \dirname(__DIR__) . '/config/pipeline.php')($app, $factory, $container);
-    (require \dirname(__DIR__) . '/config/routes.php')($app, $factory, $container);
+    (require \dirname(__DIR__) . '/config/pipeline.php')($app, $middlewareFactory, $container);
+    (require \dirname(__DIR__) . '/config/routes.php')($app, $middlewareFactory, $container);
 
-    $requestHandler = new RequestHandlerBridge($app, new ZendMessageFactory);
+    $requestFactory = $container->get(ServerRequestFactory::class);
+
+    $requestHandler = new RequestHandlerBridge($app, new FactoryMessageConverter($requestFactory));
 
     if (Cluster::isWorker()) {
         $formatter = new LineFormatter;
