@@ -7,6 +7,7 @@ use Amp\ByteStream\InputStream;
 use Amp\ByteStream\OutputStream;
 use Amp\File;
 use Amp\File\File as FileStream;
+use Amp\Loop;
 use Amp\Promise;
 use Psr\Http\Message\StreamInterface as PsrStream;
 
@@ -67,7 +68,7 @@ final class AdaptedAsyncStream implements PsrStream
         }
 
         try {
-            $size = Promise\wait(File\size($this->stream->path()));
+            $size = $this->wait(File\size($this->stream->path()));
         } catch (\Throwable $exception) {
             throw new \RuntimeException('An error occurred while retrieving the file size', 0, $exception);
         }
@@ -101,7 +102,7 @@ final class AdaptedAsyncStream implements PsrStream
         }
 
         try {
-            Promise\wait($this->stream->seek($offset, $whence));
+            $this->wait($this->stream->seek($offset, $whence));
         } catch (\Throwable $exception) {
             $this->eof = true;
             throw new \RuntimeException('An error occurred when seeking on the file stream', 0, $exception);
@@ -129,7 +130,7 @@ final class AdaptedAsyncStream implements PsrStream
         }
 
         try {
-            $length = Promise\wait($this->stream->write($string));
+            $length = $this->wait($this->stream->write($string));
         } catch (\Throwable $exception) {
             $this->eof = true;
             throw new \RuntimeException('An error occurred when writing to the stream', 0, $exception);
@@ -151,7 +152,7 @@ final class AdaptedAsyncStream implements PsrStream
 
         if ($this->buffer === null) {
             try {
-                $result = Promise\wait($this->stream->read());
+                $result = $this->wait($this->stream->read());
             } catch (\Throwable $exception) {
                 $this->eof = true;
                 throw new \RuntimeException('An error occurred while reading from the stream', 0, $exception);
@@ -178,7 +179,7 @@ final class AdaptedAsyncStream implements PsrStream
     public function getContents(): string
     {
         try {
-            return Promise\wait(ByteStream\buffer($this->stream));
+            return $this->wait(ByteStream\buffer($this->stream));
         } catch (\Throwable $exception) {
             throw new \RuntimeException('An error occurred while reading from the stream', 0, $exception);
         } finally {
@@ -200,5 +201,40 @@ final class AdaptedAsyncStream implements PsrStream
         }
 
         return $data;
+    }
+
+    /**
+     * Synchronously waits for a promise to resolve. Similar to Amp\Promise\wait(), but does not stop the event loop
+     * after the promise resolves.
+     *
+     * @param Promise $promise
+     *
+     * @return mixed Promise resolution value.
+     */
+    private function wait(Promise $promise)
+    {
+        $resolved = false;
+
+        try {
+            Loop::run(function () use (&$resolved, &$value, &$exception, $promise) {
+                $promise->onResolve(function ($e, $v) use (&$resolved, &$value, &$exception) {
+                    $resolved = true;
+                    $exception = $e;
+                    $value = $v;
+                });
+            });
+        } catch (\Throwable $throwable) {
+            throw new \Error("Loop exceptionally stopped without resolving the promise", 0, $throwable);
+        }
+
+        if (!$resolved) {
+            throw new \Error("Loop stopped without resolving the promise");
+        }
+
+        if ($exception) {
+            throw $exception;
+        }
+
+        return $value;
     }
 }
