@@ -137,7 +137,7 @@ final class FactoryMessageConverter implements MessageConverter
                 // @TODO Normalize uploaded files and write to tmp directory.
                 // $files = $form->getFiles();
             } else {
-                $converted = $converted->withBody(new AdaptedAsyncStream($request->getBody()));
+                $converted = $converted->withBody(new BufferedBody(yield $request->getBody()->buffer()));
             }
 
             return $converted;
@@ -151,33 +151,35 @@ final class FactoryMessageConverter implements MessageConverter
      */
     public function convertResponse(PsrResponse $response): Promise
     {
-        $push = $response->getHeader('link');
-        $response = $response->withoutHeader('link');
+        return call(function () use ($response) {
+            $push = $response->getHeader('link');
+            $response = $response->withoutHeader('link');
 
-        $body = $response->getBody();
+            $body = $response->getBody();
 
-        if ($body instanceof AdaptedAsyncStream) {
-            $stream = $body->extractAsyncStream();
-        } else {
-            $stream = new IteratorStream(new Producer(function (callable $emit) use ($body): \Generator {
-                while (!$body->eof()) {
-                    yield $emit($body->read(self::CHUNK_SIZE));
-                }
-            }));
-        }
-
-        $converted = new AmpResponse(
-            $response->getStatusCode(),
-            $response->getHeaders(),
-            $stream
-        );
-
-        foreach ($push as $pushed) {
-            if (\preg_match('/<([^>]+)>; rel=preload/i', $pushed, $matches)) {
-                $converted->push($matches[1]);
+            if ($body instanceof AsyncReadyStream) {
+                $stream = yield $body->createAsyncStream();
+            } else {
+                $stream = new IteratorStream(new Producer(function (callable $emit) use ($body): \Generator {
+                    while (!$body->eof()) {
+                        yield $emit($body->read(self::CHUNK_SIZE));
+                    }
+                }));
             }
-        }
 
-        return new Success($converted);
+            $converted = new AmpResponse(
+                $response->getStatusCode(),
+                $response->getHeaders(),
+                $stream
+            );
+
+            foreach ($push as $pushed) {
+                if (\preg_match('/<([^>]+)>; rel=preload/i', $pushed, $matches)) {
+                    $converted->push($matches[1]);
+                }
+            }
+
+            return $converted;
+        });
     }
 }
