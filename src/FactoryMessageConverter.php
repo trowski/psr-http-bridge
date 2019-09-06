@@ -11,9 +11,9 @@ use Amp\Producer;
 use Amp\Promise;
 use Amp\Success;
 use League\Uri\Components\Query;
-use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 use Psr\Http\Message\ResponseInterface as PsrResponse;
 use Psr\Http\Message\ServerRequestFactoryInterface as PsrServerRequestFactory;
+use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 use function Amp\call;
 
 final class FactoryMessageConverter implements MessageConverter
@@ -54,7 +54,6 @@ final class FactoryMessageConverter implements MessageConverter
             $client = $request->getClient();
             $localAddress = $client->getLocalAddress();
             $remoteAddress = $client->getRemoteAddress();
-            $query = new Query($uri->getQuery());
 
             $server = [
                 'HTTPS' => $client->isEncrypted(),
@@ -100,19 +99,19 @@ final class FactoryMessageConverter implements MessageConverter
                 $server['HTTP_HOST'] = $request->getHeader('host');
             }
 
-            $cookies = [];
-            foreach ($request->getCookies() as $cookie) {
-                $cookies[$cookie->getName()] = $cookie->getValue();
-            }
-
             $converted = $this->requestFactory->createServerRequest($request->getMethod(), $uri, $server);
 
             foreach ($request->getHeaders() as $field => $values) {
                 $converted = $converted->withHeader($field, $values);
             }
 
+            $cookies = [];
+            foreach ($request->getCookies() as $cookie) {
+                $cookies[$cookie->getName()] = $cookie->getValue();
+            }
+
             $converted = $converted->withCookieParams($cookies);
-            $converted = $converted->withQueryParams($query->getPairs());
+            $converted = $converted->withQueryParams((new Query($uri->getQuery()))->getPairs());
             $converted = $converted->withProtocolVersion($request->getProtocolVersion());
 
             $type = $request->getHeader('content-type');

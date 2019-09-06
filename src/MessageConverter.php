@@ -5,8 +5,8 @@ namespace Trowski\PsrHttpBridge;
 use Amp\Http\Server\Request as AmpRequest;
 use Amp\Http\Server\Response as AmpResponse;
 use Amp\Promise;
-use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 use Psr\Http\Message\ResponseInterface as PsrResponse;
+use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 
 interface MessageConverter
 {
