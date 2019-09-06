@@ -46,7 +46,7 @@ final class StreamFactory implements PsrStreamFactory
     public function createStreamFromResource($resource): PsrStream
     {
         return new AsyncReadyStream(
-            $this->factory->createStreamFromFile($resource),
+            $this->factory->createStreamFromResource($resource),
             static function () use ($resource): InputStream {
                 return new ResourceInputStream($resource);
             }
