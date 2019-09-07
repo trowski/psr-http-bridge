@@ -9,7 +9,6 @@ use Amp\Http\Server\Request as AmpRequest;
 use Amp\Http\Server\Response as AmpResponse;
 use Amp\Producer;
 use Amp\Promise;
-use Amp\Success;
 use League\Uri\Components\Query;
 use Psr\Http\Message\ResponseInterface as PsrResponse;
 use Psr\Http\Message\ServerRequestFactoryInterface as PsrServerRequestFactory;

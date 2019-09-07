@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Trowski\PsrHttpBridge;
 
@@ -32,7 +32,7 @@ final class AsyncReadyStream implements PsrStream
 
         $asyncFactory = $this->asyncFactory;
         $this->asyncFactory = null;
-        $promise = call($asyncFactory);
+        $promise = call($asyncFactory, $this->stream);
 
         $this->stream->detach();
 
@@ -135,7 +135,6 @@ final class AsyncReadyStream implements PsrStream
      */
     public function seek($offset, $whence = SEEK_SET): void
     {
-        $this->asyncFactory = null;
         $this->stream->seek($offset, $whence);
     }
 
@@ -151,7 +150,6 @@ final class AsyncReadyStream implements PsrStream
      */
     public function rewind(): void
     {
-        $this->asyncFactory = null;
         $this->stream->rewind();
     }
 
@@ -175,7 +173,6 @@ final class AsyncReadyStream implements PsrStream
      */
     public function write($string): int
     {
-        $this->asyncFactory = null;
         return $this->stream->write($string);
     }
 
@@ -202,7 +199,6 @@ final class AsyncReadyStream implements PsrStream
      */
     public function read($length): string
     {
-        $this->asyncFactory = null;
         return $this->stream->read($length);
     }
 
@@ -215,7 +211,6 @@ final class AsyncReadyStream implements PsrStream
      */
     public function getContents(): string
     {
-        $this->asyncFactory = null;
         return $this->stream->getContents();
     }
 
