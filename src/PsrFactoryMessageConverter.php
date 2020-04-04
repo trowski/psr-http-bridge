@@ -15,7 +15,7 @@ use Psr\Http\Message\ServerRequestFactoryInterface as PsrServerRequestFactory;
 use Psr\Http\Message\ServerRequestInterface as PsrServerRequest;
 use function Amp\call;
 
-final class FactoryMessageConverter implements MessageConverter
+final class PsrFactoryMessageConverter implements MessageConverter
 {
     private const CHUNK_SIZE = 8192;
 
@@ -28,17 +28,17 @@ final class FactoryMessageConverter implements MessageConverter
     /** @var BufferingParser */
     private $bodyParser;
 
-    /** @var string */
-    private $tmpFilePath;
+    /** @var int */
+    private $bodySizeLimit;
 
     public function __construct(
         PsrServerRequestFactory $requestFactory,
         int $fieldCountLimit = self::DEFAULT_FIELD_COUNT_LIMIT,
-        ?string $tmpFilePath = null
+        int $bodySizeLimit = self::DEFAULT_BODY_SIZE_LIMIT
     ) {
         $this->requestFactory = $requestFactory;
         $this->bodyParser = new BufferingParser($fieldCountLimit);
-        $this->tmpFilePath = $tmpFilePath ?? \sys_get_temp_dir();
+        $this->bodySizeLimit = $bodySizeLimit;
     }
 
     /**
@@ -53,6 +53,8 @@ final class FactoryMessageConverter implements MessageConverter
             $client = $request->getClient();
             $localAddress = $client->getLocalAddress();
             $remoteAddress = $client->getRemoteAddress();
+
+            $request->getBody()->increaseSizeLimit($this->bodySizeLimit);
 
             $server = [
                 'HTTPS' => $client->isEncrypted(),
@@ -132,8 +134,15 @@ final class FactoryMessageConverter implements MessageConverter
 
                 $converted = $converted->withParsedBody($postValues);
 
-                // @TODO Normalize uploaded files and write to tmp directory.
-                // $files = $form->getFiles();
+                $files = $form->getFiles();
+                $uploadedFiles = [];
+                foreach ($files as $fileset) {
+                    foreach ($fileset as $file) {
+                        $uploadedFiles[] = new BufferedUploadedFile($file);
+                    }
+                }
+
+                $converted->withUploadedFiles($uploadedFiles);
             } else {
                 $converted = $converted->withBody(new BufferedBody(yield $request->getBody()->buffer()));
             }
@@ -150,9 +159,6 @@ final class FactoryMessageConverter implements MessageConverter
     public function convertResponse(PsrResponse $response): Promise
     {
         return call(function () use ($response) {
-            $push = $response->getHeader('link');
-            $response = $response->withoutHeader('link');
-
             $body = $response->getBody();
 
             if ($body instanceof AsyncReadyStream) {
@@ -171,7 +177,7 @@ final class FactoryMessageConverter implements MessageConverter
                 $stream
             );
 
-            foreach ($push as $pushed) {
+            foreach ($response->getHeader('link') as $pushed) {
                 if (\preg_match('/<([^>]+)>; rel=preload/i', $pushed, $matches)) {
                     $converted->push($matches[1]);
                 }
