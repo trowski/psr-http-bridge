@@ -24,6 +24,7 @@
         "php": "^7.1",
         "amphp/http-server": "^2",
         "amphp/http-server-form-parser": "^1",
+        "kelunik/link-header-rfc5988": "^1",
         "league/uri-components": "^1.7",
         "psr/http-factory": "^1",
         "psr/http-message": "^1",

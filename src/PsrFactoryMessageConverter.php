@@ -9,6 +9,7 @@ use Amp\Http\Server\Request as AmpRequest;
 use Amp\Http\Server\Response as AmpResponse;
 use Amp\Producer;
 use Amp\Promise;
+use Kelunik\LinkHeaderRfc5988;
 use League\Uri\Components\Query;
 use Psr\Http\Message\ResponseInterface as PsrResponse;
 use Psr\Http\Message\ServerRequestFactoryInterface as PsrServerRequestFactory;
@@ -177,10 +178,9 @@ final class PsrFactoryMessageConverter implements MessageConverter
                 $stream
             );
 
-            foreach ($response->getHeader('link') as $pushed) {
-                if (\preg_match('/<([^>]+)>; rel=preload/i', $pushed, $matches)) {
-                    $converted->push($matches[1]);
-                }
+            $links = LinkHeaderRfc5988\parseLinks($response->getHeaderLine('link'));
+            foreach ($links->getAllByRel('preload') as $link) {
+                $converted->push($link->getUri());
             }
 
             return $converted;
