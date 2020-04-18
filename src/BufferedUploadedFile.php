@@ -37,22 +37,22 @@ final class BufferedUploadedFile implements PsrUploadedFile
         \file_put_contents($targetPath, $this->file->getContents());
     }
 
-    public function getSize()
+    public function getSize(): int
     {
         return \strlen($this->file->getContents());
     }
 
-    public function getError()
+    public function getError(): int
     {
         return \UPLOAD_ERR_OK;
     }
 
-    public function getClientFilename()
+    public function getClientFilename(): ?string
     {
         return $this->file->getName();
     }
 
-    public function getClientMediaType()
+    public function getClientMediaType(): ?string
     {
         return $this->file->getMimeType();
     }
